@@ -408,14 +408,16 @@ class OrderService {
 
   /** WAITER **/
 
-  /** Hali yopilmagan (to'lanmagan, yakunlanmagan) stol buyurtmalari sharti */
+  /**
+   * Hali yopilmagan stol buyurtmalari sharti — admin "Buyurtmalar holati" paneli bilan bir xil:
+   * stol admin'da "To'landi" bosilganda (COMPLETED) yopiladi.
+   */
   private activeTableOrderMatch(tableId?: string): T {
     const match: T = {
       orderType: OrderType.TABLE,
       orderStatus: {
         $nin: [OrderStatus.PAUSE, OrderStatus.COMPLETED, OrderStatus.CANCELLED],
       },
-      paymentStatus: { $ne: PaymentStatus.PAID },
     };
     if (tableId) match.tableId = shapeIntoMongooseObjectId(tableId);
     return match;
