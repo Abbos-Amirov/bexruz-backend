@@ -22,9 +22,12 @@ const MAX_FAILS = 5;
 const FAIL_WINDOW_MS = 10 * 60 * 1000;
 const failedLogins = new Map<string, { count: number; first: number }>();
 
+/** PIN harf va raqamdan iborat; katta-kichik harf farqlanmaydi */
+const normalizePin = (value: unknown): string => String(value ?? "").trim().toUpperCase();
+
 const pinMatches = (input: string, expected: string): boolean => {
-  const a = Buffer.from(String(input));
-  const b = Buffer.from(String(expected));
+  const a = Buffer.from(normalizePin(input));
+  const b = Buffer.from(normalizePin(expected));
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 };
 
