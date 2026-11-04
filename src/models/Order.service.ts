@@ -24,6 +24,10 @@ import { isMember, isTable } from "../libs/utils/validators";
 import NotifService from "./Notif.service";
 import { NotifStatus, NotifType } from "../libs/enums/notif.enum";
 import { MessageNotif, Title } from "../libs/notif";
+import TableModel from "../schema/Table.model";
+import ProductModel from "../schema/Product.model";
+import { ProductStatus } from "../libs/enums/product.enums";
+import { TableStatus } from "../libs/enums/table.enum";
 
 class OrderService {
   private readonly orderModel;
@@ -400,6 +404,142 @@ class OrderService {
         notifStatus: NotifStatus.READ,
       });
     return result;
+  }
+
+  /** WAITER **/
+
+  /** Hali yopilmagan (to'lanmagan, yakunlanmagan) stol buyurtmalari sharti */
+  private activeTableOrderMatch(tableId?: string): T {
+    const match: T = {
+      orderType: OrderType.TABLE,
+      orderStatus: {
+        $nin: [OrderStatus.PAUSE, OrderStatus.COMPLETED, OrderStatus.CANCELLED],
+      },
+      paymentStatus: { $ne: PaymentStatus.PAID },
+    };
+    if (tableId) match.tableId = shapeIntoMongooseObjectId(tableId);
+    return match;
+  }
+
+  /**
+   * Afitsant buyurtmasi: narxlar bazadan olinadi (brauzerga ishonilmaydi),
+   * buyurtma darhol PENDING bo'ladi va admin panelda ko'rinadi, stol band qilinadi.
+   */
+  public async createWaiterOrder(
+    tableId: string,
+    items: { productId: string; itemQuantity: number }[]
+  ): Promise<{ order: Order; table: Table }> {
+    if (!tableId || !Array.isArray(items) || items.length === 0) {
+      throw new Errors(HttpCode.BAD_REQUEST, Message.CREATE_FAILED);
+    }
+
+    const table = (await TableModel.findById(
+      shapeIntoMongooseObjectId(tableId)
+    )
+      .lean()
+      .exec()) as Table | null;
+    if (!table) throw new Errors(HttpCode.NOT_FOUND, Message.NO_DATA_FOUND);
+
+    const quantities = new Map<string, number>();
+    for (const item of items) {
+      const qty = Math.floor(Number(item?.itemQuantity));
+      if (!item?.productId || !Number.isFinite(qty) || qty < 1) {
+        throw new Errors(HttpCode.BAD_REQUEST, Message.CREATE_FAILED);
+      }
+      const id = String(item.productId);
+      quantities.set(id, (quantities.get(id) ?? 0) + qty);
+    }
+
+    const products = await ProductModel.find({
+      _id: { $in: Array.from(quantities.keys()).map(shapeIntoMongooseObjectId) },
+      productStatus: ProductStatus.PROCESS,
+    })
+      .lean()
+      .exec();
+    if (products.length !== quantities.size) {
+      throw new Errors(HttpCode.BAD_REQUEST, Message.CREATE_FAILED);
+    }
+
+    const input: OrderItemInput[] = products.map((p: any) => ({
+      productId: p._id,
+      itemQuantity: quantities.get(String(p._id)) as number,
+      itemPrice: Number(p.productPrice),
+    }));
+
+    const created = await this.createOrder(table, input);
+    const order = (await this.orderModel
+      .findByIdAndUpdate(
+        created._id,
+        { orderStatus: OrderStatus.PENDING },
+        { new: true }
+      )
+      .exec()) as Order;
+
+    await TableModel.updateOne(
+      { _id: table._id },
+      { tableStatus: TableStatus.OCCUPIED }
+    ).exec();
+
+    return { order, table };
+  }
+
+  /** Stol bo'yicha faol buyurtmalar soni (afitsantning stollar ekrani uchun) */
+  public async countActiveOrdersByTable(): Promise<Record<string, number>> {
+    const rows = await this.orderModel
+      .aggregate([
+        { $match: this.activeTableOrderMatch() },
+        { $group: { _id: "$tableId", count: { $sum: 1 } } },
+      ])
+      .exec();
+    const result: Record<string, number> = {};
+    rows.forEach((r: any) => {
+      if (r._id) result[String(r._id)] = r.count;
+    });
+    return result;
+  }
+
+  /** Tanlangan stolning hali yopilmagan buyurtmalari (taom nomlari bilan) */
+  public async getActiveTableOrders(tableId: string): Promise<T[]> {
+    const rows = await this.orderModel
+      .aggregate([
+        { $match: this.activeTableOrderMatch(tableId) },
+        { $sort: { createdAt: -1 } },
+        { $limit: 50 },
+        {
+          $lookup: {
+            from: "orderItems",
+            localField: "_id",
+            foreignField: "orderId",
+            as: "orderItems",
+          },
+        },
+        {
+          $lookup: {
+            from: "products",
+            localField: "orderItems.productId",
+            foreignField: "_id",
+            as: "productData",
+          },
+        },
+      ])
+      .exec();
+
+    return rows.map((o: any) => {
+      const names = new Map<string, string>(
+        (o.productData ?? []).map((p: any) => [String(p._id), p.productName])
+      );
+      return {
+        _id: o._id,
+        createdAt: o.createdAt,
+        orderStatus: o.orderStatus,
+        orderTotal: o.orderTotal,
+        items: (o.orderItems ?? []).map((i: any) => ({
+          productName: names.get(String(i.productId)) ?? "—",
+          itemQuantity: i.itemQuantity,
+          itemPrice: i.itemPrice,
+        })),
+      };
+    });
   }
 
   /** Stol bo‘yicha barcha buyurtmalarni yakunlash (PAID + COMPLETED) — bugungi daromadga kiradi */

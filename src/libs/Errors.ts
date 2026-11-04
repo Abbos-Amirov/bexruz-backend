@@ -6,6 +6,7 @@ export enum HttpCode {
   UNAUTHORIZED = 401,
   FORBIDDEN = 403,
   NOT_FOUND = 404,
+  TOO_MANY_REQUESTS = 429,
   INTERNAL_SERVER_ERROR = 500,
 }
 
@@ -23,6 +24,9 @@ export enum Message {
   WRONG_PASSWORD = "Wrong password entered, please try again",
   NOT_AUTHENTICATED = "You are not authenticated, Please login first!",
   NOT_TABLE = "No table found for this QR code",
+  WRONG_PIN = "PIN-kod noto'g'ri",
+  TOO_MANY_ATTEMPTS = "Juda ko'p urinish. Birozdan keyin qayta urinib ko'ring",
+  WAITER_PIN_NOT_SET = "Afitsant PIN-kodi serverda sozlanmagan",
   DUPLICATE_PRODUCT = "Bunday mahsulot (nom + o'lcham + hajm) allaqachon mavjud",
 }
 

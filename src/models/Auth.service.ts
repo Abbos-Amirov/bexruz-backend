@@ -1,5 +1,5 @@
 import { Member } from "../libs/types/member";
-import { AUTH_TIMER_MEMBER, AUTH_TIMER_TABLE } from "../libs/config";
+import { AUTH_TIMER_MEMBER, AUTH_TIMER_TABLE, AUTH_TIMER_WAITER } from "../libs/config";
 import jwt from "jsonwebtoken";
 import Errors, { HttpCode, Message } from "../libs/Errors";
 import { Table } from "../libs/types/table";
@@ -64,6 +64,35 @@ class AuthService {
       this.secretToken as string
     )) as Table;
     return result;
+  }
+
+  /** Waiter (umumiy PIN bilan kirgan afitsant) */
+  public createWaiterToken(): Promise<string> {
+    return new Promise((resolve, reject) => {
+      jwt.sign(
+        { role: "WAITER" },
+        process.env.SECRET_TOKEN as string,
+        { expiresIn: `${AUTH_TIMER_WAITER}h` },
+        (err, token) => {
+          if (err || !token)
+            reject(
+              new Errors(HttpCode.UNAUTHORIZED, Message.TOKEN_CREATION_FAILED)
+            );
+          else resolve(token);
+        }
+      );
+    });
+  }
+
+  public checkWaiterToken(token: string): boolean {
+    try {
+      const payload = jwt.verify(token, this.secretToken as string) as {
+        role?: string;
+      };
+      return payload?.role === "WAITER";
+    } catch {
+      return false;
+    }
   }
 }
 

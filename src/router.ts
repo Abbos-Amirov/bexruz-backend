@@ -5,6 +5,7 @@ import productController from "./controllers/product.controller";
 import makeUploader from "./libs/utils/uploader";
 import orderController from "./controllers/order.controller";
 import tableController from "./controllers/table.controller";
+import waiterController from "./controllers/waiter.controller";
 
 /** MEMBER */
 router
@@ -48,9 +49,8 @@ router
     orderController.updateOrder
   );
 
-/** Table */
+/** Table (QR orqali mijoz buyurtmasi o'chirilgan — buyurtmani afitsant beradi) */
 router
-  .get("/table/qr/:id", tableController.qrLanding)
   .get(
     "/table/call/:id",
     tableController.verifyTable,
@@ -60,6 +60,21 @@ router
     "/table/logout",
     tableController.verifyTable,
     tableController.TableLogout
+  );
+
+/** Waiter (afitsant ilovasi, umumiy PIN) */
+router
+  .post("/waiter/login", waiterController.login)
+  .get("/waiter/tables", waiterController.verifyWaiter, waiterController.getTables)
+  .get(
+    "/waiter/table/:id/orders",
+    waiterController.verifyWaiter,
+    waiterController.getTableOrders
+  )
+  .post(
+    "/waiter/order/create",
+    waiterController.verifyWaiter,
+    waiterController.createOrder
   );
 
 export default router;
