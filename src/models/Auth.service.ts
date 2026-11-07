@@ -1,5 +1,6 @@
 import { Member } from "../libs/types/member";
-import { AUTH_TIMER_MEMBER, AUTH_TIMER_TABLE, AUTH_TIMER_WAITER } from "../libs/config";
+import { AUTH_TIMER_TABLE } from "../libs/config";
+import { secondsUntilSessionReset } from "../libs/utils/sessionExpiry";
 import jwt from "jsonwebtoken";
 import Errors, { HttpCode, Message } from "../libs/Errors";
 import { Table } from "../libs/types/table";
@@ -14,7 +15,8 @@ class AuthService {
   /** Member */
   public createToken(payload: Member) {
     return new Promise((resolve, reject) => {
-      const duration = `${AUTH_TIMER_MEMBER}h`;
+      // Sessiya har kuni ertalab (SESSION_RESET_HOUR, sukut 07:00) tugaydi
+      const duration = secondsUntilSessionReset();
       jwt.sign(
         payload,
         process.env.SECRET_TOKEN as string,
@@ -74,7 +76,8 @@ class AuthService {
       jwt.sign(
         { role: "WAITER" },
         process.env.SECRET_TOKEN as string,
-        { expiresIn: `${AUTH_TIMER_WAITER}h` },
+        // Afitsant sessiyasi ham har kuni ertalab tugaydi
+        { expiresIn: secondsUntilSessionReset() },
         (err, token) => {
           if (err || !token)
             reject(

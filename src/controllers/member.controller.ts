@@ -9,7 +9,7 @@ import { NextFunction, Request, Response } from "express";
 import Errors, { HttpCode, Message } from "../libs/Errors";
 import MemberService from "../models/Member.service";
 import AuthService from "../models/Auth.service";
-import { AUTH_TIMER_MEMBER } from "../libs/config";
+import { secondsUntilSessionReset } from "../libs/utils/sessionExpiry";
 import TableService from "../models/Table.service";
 
 const tableService = new TableService();
@@ -39,7 +39,7 @@ memberController.signup = async (req: Request, res: Response) => {
       token = await authService.createToken(result);
 
     res.cookie("accessToken", token, {
-      maxAge: AUTH_TIMER_MEMBER * 3600 * 1000,
+      maxAge: secondsUntilSessionReset() * 1000,
       httpOnly: true,
       sameSite: "none",
       secure: true,
@@ -84,7 +84,7 @@ memberController.login = async (req: Request, res: Response) => {
     const token = await authService.createToken(result);
 
     res.cookie("accessToken", token, {
-      maxAge: AUTH_TIMER_MEMBER * 3600 * 1000,
+      maxAge: secondsUntilSessionReset() * 1000,
       httpOnly: true,
       sameSite: "none",
       secure: true,

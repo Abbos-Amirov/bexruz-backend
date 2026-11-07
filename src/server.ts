@@ -61,11 +61,19 @@ mongoose
     ioInstance.use(async (socket, next) => {
       const token = socket.handshake.auth?.token as string | undefined;
       const member = await socketAuth.verifyAdminToken(token);
-      if (member) return next();
-      next(new Error("unauthorized"));
+      if (!member) return next(new Error("unauthorized"));
+      socket.data.exp = (member as { exp?: number }).exp;
+      next();
     });
 
     ioInstance.on("connection", (socket) => {
+      // Token muddati (har kuni ertalab) tugaganda ulanish ham uziladi
+      const exp = Number(socket.data.exp);
+      if (exp) {
+        const ms = exp * 1000 - Date.now();
+        const timer = setTimeout(() => socket.disconnect(true), Math.max(0, ms));
+        socket.on("disconnect", () => clearTimeout(timer));
+      }
       console.log(" Admin connected:", socket.id);
       socket.join("admins");
     });
