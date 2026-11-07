@@ -47,24 +47,24 @@ adminController.updateChosenUser = async (req: Request, res: Response) => {
   }
 };
 
+/** Barcha /admin/* route'lar uchun: faqat faol RESTAURANT akkaunti o'tadi */
 adminController.verifyAdmin = async (
   req: ExtendedRequest,
   res: Response,
   next: NextFunction
 ) => {
-  try {
-    const token = req.cookies["accessToken"];
-    if (token) req.member = await authService.checkAuth(token);
-
-    if (req.member?.memberType !== MemberType.RESTAURANT)
-      throw new Errors(HttpCode.UNAUTHORIZED, Message.NOT_AUTHENTICATED);
-
-    next();
-  } catch (err) {
-    console.log("Error, verifyAuth:", err);
-    if (err instanceof Errors) res.status(err.code).json(err);
-    else res.status(Errors.standard.code).json(Errors.standard);
+  const header = req.headers.authorization ?? "";
+  const token = header.startsWith("Bearer ")
+    ? header.slice(7)
+    : req.cookies?.["accessToken"];
+  const member = await authService.verifyAdminToken(token);
+  if (!member) {
+    const err = new Errors(HttpCode.UNAUTHORIZED, Message.NOT_AUTHENTICATED);
+    res.status(err.code).json(err);
+    return;
   }
+  req.member = member;
+  next();
 };
 
 adminController.getNotifications = async (req: Request, res: Response) => {

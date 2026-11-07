@@ -47,7 +47,8 @@ memberController.signup = async (req: Request, res: Response) => {
       domain: ".navruz.food",
     });
 
-    res.status(HttpCode.CREATED).json({ member: result });
+    // Token javobda ham: IP (http) orqali cookie saqlanmagani uchun admin uni header bilan yuboradi
+    res.status(HttpCode.CREATED).json({ member: result, accessToken: token });
   } catch (err) {
     console.log("Error, signup:", err);
     if (err instanceof Errors) res.status(err.code).json(err);
@@ -55,13 +56,32 @@ memberController.signup = async (req: Request, res: Response) => {
   }
 };
 
+/** Parolni taxmin qilishdan himoya: IP bo'yicha 10 daqiqada 10 ta xato */
+const LOGIN_MAX_FAILS = 10;
+const LOGIN_WINDOW_MS = 10 * 60 * 1000;
+const loginFails = new Map<string, { count: number; first: number }>();
+
 memberController.login = async (req: Request, res: Response) => {
+  const ip = req.ip || "unknown";
   try {
     console.log("login");
-    const input: LoginInput = req.body,
-      result = await memberService.login(input),
-      token = await authService.createToken(result);
-    console.log("token: ", token);
+    const now = Date.now();
+    const rec = loginFails.get(ip);
+    if (rec && now - rec.first > LOGIN_WINDOW_MS) loginFails.delete(ip);
+    if ((loginFails.get(ip)?.count ?? 0) >= LOGIN_MAX_FAILS)
+      throw new Errors(HttpCode.TOO_MANY_REQUESTS, Message.TOO_MANY_ATTEMPTS);
+
+    const input: LoginInput = req.body;
+    let result;
+    try {
+      result = await memberService.login(input);
+    } catch (loginErr) {
+      const cur = loginFails.get(ip);
+      loginFails.set(ip, { count: (cur?.count ?? 0) + 1, first: cur?.first ?? now });
+      throw loginErr;
+    }
+    loginFails.delete(ip);
+    const token = await authService.createToken(result);
 
     res.cookie("accessToken", token, {
       maxAge: AUTH_TIMER_MEMBER * 3600 * 1000,
@@ -72,7 +92,7 @@ memberController.login = async (req: Request, res: Response) => {
       domain: ".navruz.food",
     });
 
-    res.status(HttpCode.OK).json({ member: result });
+    res.status(HttpCode.OK).json({ member: result, accessToken: token });
   } catch (err) {
     console.log("Error, login:", err);
     if (err instanceof Errors) res.status(err.code).json(err);

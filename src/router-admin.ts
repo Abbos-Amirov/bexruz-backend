@@ -6,6 +6,9 @@ import tableController from "./controllers/table.controller";
 import orderController from "./controllers/order.controller";
 const routerAdmin = Router();
 
+// Hamma /admin/* so'rovlar faqat admin tokeni bilan (Authorization: Bearer)
+routerAdmin.use(adminController.verifyAdmin);
+
 // Products
 routerAdmin.get("/product/all", productController.getAllProducts);
 // Taomlar bo'yicha sotuv statistikasi (dashboard → "Jami buyurtma qilingan ovqatlar")

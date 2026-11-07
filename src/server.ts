@@ -7,6 +7,7 @@ import app from "./app";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import OrderService from "./models/Order.service";
+import AuthService from "./models/Auth.service";
 
 const PORT = process.env.PORT ?? 3001;
 const orderService = new OrderService();
@@ -53,6 +54,15 @@ mongoose
         credentials: true,
       },
       transports: ["polling", "websocket"],
+    });
+
+    // Admin xonasiga faqat admin tokeni bilan ulaniladi (buyurtma xabarlari ochiq tarqalmasin)
+    const socketAuth = new AuthService();
+    ioInstance.use(async (socket, next) => {
+      const token = socket.handshake.auth?.token as string | undefined;
+      const member = await socketAuth.verifyAdminToken(token);
+      if (member) return next();
+      next(new Error("unauthorized"));
     });
 
     ioInstance.on("connection", (socket) => {

@@ -24,6 +24,7 @@ export enum Message {
   WRONG_PASSWORD = "Wrong password entered, please try again",
   NOT_AUTHENTICATED = "You are not authenticated, Please login first!",
   NOT_TABLE = "No table found for this QR code",
+  SIGNUP_DISABLED = "Ro'yxatdan o'tish yopilgan",
   WRONG_PIN = "PIN-kod noto'g'ri",
   TOO_MANY_ATTEMPTS = "Juda ko'p urinish. Birozdan keyin qayta urinib ko'ring",
   WAITER_PIN_NOT_SET = "Afitsant PIN-kodi serverda sozlanmagan",

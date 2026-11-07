@@ -2,34 +2,19 @@ import { Router } from "express";
 const router = Router();
 import memberController from "./controllers/member.controller";
 import productController from "./controllers/product.controller";
-import makeUploader from "./libs/utils/uploader";
-import orderController from "./controllers/order.controller";
-import tableController from "./controllers/table.controller";
 import waiterController from "./controllers/waiter.controller";
 
-/** MEMBER */
+/** MEMBER — faqat admin login/logout va restoran ma'lumoti */
 router
   .get("/member/restaurant", memberController.getRestaurant)
   .post("/member/login", memberController.login)
   .post("/member/signup", memberController.signup)
-  .post("/member/logout", memberController.logout)
-  .get(
-    "/member/detail",
-    // memberController.verifyAuth,
-    memberController.getMemberDetail
-  )
-  .post(
-    "/member/update",
-    memberController.verifyMember,
-    makeUploader("members").single("memberImage"),
-    memberController.updateMember
-  )
-  .get("/member/top-users", memberController.getTopUsers);
+  .post("/member/logout", memberController.logout);
 
 /** Public menu (stoldagi QR → faqat menyuni ko'rish) */
 router.get("/menu/products", productController.getPublicMenu);
 
-/** Product */
+/** Product (faqat o'qish) */
 router
   .get("/product/all", productController.getProducts)
   .get(
@@ -38,32 +23,11 @@ router
     productController.getProduct
   );
 
-/** Order */
-router
-  .post(
-    "/order/create",
-    memberController.verifyAuth,
-    orderController.createOrder
-  )
-  .get("/order/all", memberController.verifyAuth, orderController.getMyOrders)
-  .post(
-    "/order/update",
-    memberController.verifyAuth,
-    orderController.updateOrder
-  );
-
-/** Table (QR orqali mijoz buyurtmasi o'chirilgan — buyurtmani afitsant beradi) */
-router
-  .get(
-    "/table/call/:id",
-    tableController.verifyTable,
-    tableController.clickTableCall
-  )
-  .post(
-    "/table/logout",
-    tableController.verifyTable,
-    tableController.TableLogout
-  );
+/**
+ * Mijozlar endi buyurtma bermaydi: eski /order/* (mijoz buyurtmasi), /table/*
+ * (QR stol sessiyasi), /member/update|detail|top-users route'lari olib tashlandi.
+ * Buyurtmani afitsant /waiter/* orqali beradi.
+ */
 
 /** Waiter (afitsant ilovasi, umumiy PIN) */
 router

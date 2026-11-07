@@ -37,6 +37,10 @@ class MemberService {
       .exec();
     if (exist && input.memberType === MemberType.RESTAURANT)
       throw new Errors(HttpCode.BAD_REQUEST, Message.ADMIN_EXIST);
+    // Mijoz akkauntlari endi ishlatilmaydi (buyurtmani afitsant beradi):
+    // ro'yxatdan o'tish faqat birinchi admin (RESTAURANT) akkaunti uchun
+    if (input.memberType !== MemberType.RESTAURANT)
+      throw new Errors(HttpCode.FORBIDDEN, Message.SIGNUP_DISABLED);
     const salt = await bcrypt.genSalt();
     input.memberPassword = await bcrypt.hash(input.memberPassword, salt);
 
