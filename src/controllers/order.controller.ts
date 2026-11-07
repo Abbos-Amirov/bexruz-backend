@@ -180,4 +180,21 @@ orderController.completeTableOrders = async (req: Request, res: Response) => {
   }
 };
 
+/** Taomlar bo'yicha sotuv: ?from=ISO sana (default — oxirgi 30 kun) */
+orderController.getProductSales = async (req: Request, res: Response) => {
+  try {
+    const raw = req.query.from ? new Date(String(req.query.from)) : null;
+    const from =
+      raw && !isNaN(raw.getTime())
+        ? raw
+        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const result = await orderService.getProductSales(from);
+    res.status(HttpCode.OK).json(result);
+  } catch (err) {
+    console.log("Error, getProductSales:", err);
+    if (err instanceof Errors) res.status(err.code).json(err);
+    else res.status(Errors.standard.code).json(Errors.standard);
+  }
+};
+
 export default orderController;

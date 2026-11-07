@@ -522,6 +522,74 @@ class OrderService {
   }
 
   /**
+   * Har bir taom bo'yicha `from` sanasidan beri nechta sotilgani va summasi.
+   * PAUSE (tasdiqlanmagan) va bekor qilingan buyurtmalar hisobga olinmaydi.
+   * Hech sotilmagan taomlar ham 0 bilan qaytadi (o'chirilganlari faqat sotilgan bo'lsa).
+   */
+  public async getProductSales(from: Date): Promise<T[]> {
+    return ProductModel.aggregate([
+      {
+        $lookup: {
+          from: "orderItems",
+          let: { pid: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$productId", "$$pid"] } } },
+            {
+              $lookup: {
+                from: "orders",
+                localField: "orderId",
+                foreignField: "_id",
+                as: "order",
+              },
+            },
+            { $unwind: "$order" },
+            {
+              $match: {
+                "order.createdAt": { $gte: from },
+                "order.orderStatus": {
+                  $nin: [OrderStatus.PAUSE, OrderStatus.CANCELLED, "CANCELED"],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                soldQty: { $sum: "$itemQuantity" },
+                revenue: { $sum: { $multiply: ["$itemQuantity", "$itemPrice"] } },
+                orderIds: { $addToSet: "$orderId" },
+              },
+            },
+          ],
+          as: "sales",
+        },
+      },
+      {
+        $match: {
+          $or: [
+            { productStatus: { $ne: ProductStatus.DELETE } },
+            { "sales.0": { $exists: true } },
+          ],
+        },
+      },
+      {
+        $project: {
+          productName: 1,
+          productImages: 1,
+          productCollection: 1,
+          productPrice: 1,
+          productStatus: 1,
+          soldQty: { $ifNull: [{ $arrayElemAt: ["$sales.soldQty", 0] }, 0] },
+          revenue: { $ifNull: [{ $arrayElemAt: ["$sales.revenue", 0] }, 0] },
+          orderCount: {
+            $size: { $ifNull: [{ $arrayElemAt: ["$sales.orderIds", 0] }, []] },
+          },
+        },
+      },
+      { $sort: { soldQty: -1, revenue: -1, productName: 1 } },
+    ]).exec();
+  }
+
+  /**
    * Stol bo'yicha barcha ochiq buyurtmalarni yakunlash (PAID + COMPLETED).
    * To'lov holatidan qat'i nazar yopiladi: oldindan to'langan, lekin PENDING
    * qolgan buyurtmalar ham panelda qolib ketmasligi uchun.

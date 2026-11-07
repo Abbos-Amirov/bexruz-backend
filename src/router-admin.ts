@@ -8,6 +8,8 @@ const routerAdmin = Router();
 
 // Products
 routerAdmin.get("/product/all", productController.getAllProducts);
+// Taomlar bo'yicha sotuv statistikasi (dashboard → "Jami buyurtma qilingan ovqatlar")
+routerAdmin.get("/product/sales", orderController.getProductSales);
 routerAdmin.post(
   "/product/create",
   makeUploader("products").array("productImages", 5),
