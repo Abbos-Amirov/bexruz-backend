@@ -194,4 +194,17 @@ productController.toggleProductStatus = async (req: Request, res: Response) => {
   }
 };
 
+/** Mijozlar uchun ochiq, faqat o'qish uchun menyu (stoldagi QR kod) */
+productController.getPublicMenu = async (req: Request, res: Response) => {
+  try {
+    const result = await productService.getPublicMenu();
+    res.set("Cache-Control", "public, max-age=60");
+    res.status(HttpCode.OK).json(result);
+  } catch (err) {
+    console.log("Error, getPublicMenu:", err);
+    if (err instanceof Errors) res.status(err.code).json(err);
+    else res.status(Errors.standard.code).json(Errors.standard);
+  }
+};
+
 export default productController;

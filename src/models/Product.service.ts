@@ -25,6 +25,29 @@ class ProductService {
   }
 
   /** MEMBER */
+  /**
+   * Mijozlar uchun ochiq menyu (QR orqali): faqat faol taomlar va faqat
+   * menyuga kerakli maydonlar — qoldiq soni, ko'rishlar va h.k. berilmaydi.
+   */
+  public async getPublicMenu(): Promise<T[]> {
+    return this.productModel
+      .find(
+        { productStatus: ProductStatus.PROCESS },
+        {
+          productName: 1,
+          productPrice: 1,
+          productCollection: 1,
+          productSize: 1,
+          productVolume: 1,
+          productDesc: 1,
+          productImages: 1,
+        }
+      )
+      .sort({ productCollection: 1, createdAt: -1 })
+      .lean()
+      .exec();
+  }
+
   public async getProducts(inquiry: ProductInquiry): Promise<Product[]> {
     const match: T = { productStatus: ProductStatus.PROCESS };
 

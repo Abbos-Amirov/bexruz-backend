@@ -26,6 +26,9 @@ router
   )
   .get("/member/top-users", memberController.getTopUsers);
 
+/** Public menu (stoldagi QR → faqat menyuni ko'rish) */
+router.get("/menu/products", productController.getPublicMenu);
+
 /** Product */
 router
   .get("/product/all", productController.getProducts)
