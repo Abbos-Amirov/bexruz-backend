@@ -127,22 +127,11 @@ orderController.getAllOrders = async (req: Request, res: Response) => {
 
 orderController.getAllOrdersPanel = async (req: Request, res: Response) => {
   try {
-    console.log("getAllOrders");
-    const { page, limit, status, payStatus, search, type, payMeth } = req.query;
-    const inquiry: OrderInquiry = {
-      page: Number(page) || 1,
-      limit: Number(limit) || 10,
-    };
-    if (search) inquiry.search = String(search);
-    if (status) inquiry.status = status as OrderStatus;
-    if (payStatus) inquiry.payStatus = payStatus as PaymentStatus;
-    if (payMeth) inquiry.payMeth = payMeth as PaymentMethod;
-    if (type) inquiry.type = type as OrderType;
-
-    const data = await orderService.getAllOrders(inquiry);
+    console.log("getAllOrdersPanel");
+    const data = await orderService.getAllOrdersPanel();
     res.status(HttpCode.OK).json(data);
   } catch (err) {
-    console.log("Error, getAllOrders:", err);
+    console.log("Error, getAllOrdersPanel:", err);
     if (err instanceof Errors) res.status(err.code).json(err);
     else res.status(Errors.standard.code).json(Errors.standard);
   }

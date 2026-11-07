@@ -64,7 +64,7 @@ mongoose
       console.info(`Server running on http://localhost:${PORT}`);
       setInterval(async () => {
         try {
-          const data = await orderService.getAllOrdersPanel({ page: 1, limit: 500 });
+          const data = await orderService.getAllOrdersPanel();
           ioInstance.to("admins").emit("panelOrders", data);
         } catch (e) {
           console.error("panelOrders emit error:", e);

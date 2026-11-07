@@ -270,39 +270,23 @@ class OrderService {
     return result;
   }
 
-  public async getAllOrdersPanel(inquiry: OrderInquiry): Promise<Order[]> {
-    const match: T = { orderStatus: { $ne: OrderStatus.PAUSE } };
-
-    if (inquiry.payStatus) match.paymentStatus = inquiry.payStatus;
-    if (inquiry.payMeth) match.paymentMethod = inquiry.payMeth;
-    if (inquiry.status) match.orderStatus = inquiry.status;
-    if (inquiry.type) match.orderType = inquiry.type;
-    if (inquiry.search)
-      match.orderType = { $regex: new RegExp(inquiry.search, "i") };
-
-    const page = Math.max(1, Number(inquiry.page) || 1);
-    const limit = Math.min(100, Math.max(1, Number(inquiry.limit) || 10));
-
+  /**
+   * "Buyurtmalar holati" paneli: barcha ochiq stol buyurtmalari (sahifalashsiz).
+   * Avval oxirgi 10 ta buyurtma olinib brauzerda filtrlangani uchun eski/boshqa
+   * buyurtmalar panelga "ko'tarilib" chiqar, ba'zi stollar esa umuman ko'rinmas edi.
+   */
+  public async getAllOrdersPanel(): Promise<Order[]> {
     const result = await this.orderModel
       .aggregate([
-        { $match: match },
+        { $match: this.activeTableOrderMatch() },
         { $sort: { createdAt: -1 } },
-        { $skip: (page - 1) * limit },
-        { $limit: limit },
+        { $limit: 500 },
         {
           $lookup: {
             from: "tables",
             localField: "tableId",
             foreignField: "_id",
             as: "tableData",
-          },
-        },
-        {
-          $lookup: {
-            from: "members",
-            localField: "memberId",
-            foreignField: "_id",
-            as: "memberData",
           },
         },
         {
@@ -324,19 +308,12 @@ class OrderService {
         {
           $addFields: {
             tableNumber: { $arrayElemAt: ["$tableData.tableNumber", 0] },
-            memberNick: { $arrayElemAt: ["$memberData.memberNick", 0] },
           },
         },
-        {
-          $project: {
-            tableData: 0,
-            memberData: 0,
-          },
-        },
+        { $project: { tableData: 0 } },
       ])
       .exec();
-    if (!result) throw new Errors(HttpCode.NOT_FOUND, Message.NO_DATA_FOUND);
-    return result;
+    return result ?? [];
   }
 
   /** Birta buyurtmani to'liq (orderItems, productData, tableNumber, memberNick) qaytaradi — Socket orderCreated uchun */
@@ -544,24 +521,24 @@ class OrderService {
     });
   }
 
-  /** Stol bo‘yicha barcha buyurtmalarni yakunlash (PAID + COMPLETED) — bugungi daromadga kiradi */
+  /**
+   * Stol bo'yicha barcha ochiq buyurtmalarni yakunlash (PAID + COMPLETED).
+   * To'lov holatidan qat'i nazar yopiladi: oldindan to'langan, lekin PENDING
+   * qolgan buyurtmalar ham panelda qolib ketmasligi uchun.
+   */
   public async completeTableOrders(tableId: string): Promise<{ updatedCount: number; totalSum: number }> {
-    const tid = shapeIntoMongooseObjectId(tableId);
-    const unpaid = await this.orderModel
-      .find({ tableId: tid, paymentStatus: { $ne: PaymentStatus.PAID } })
-      .lean()
-      .exec();
-    if (!unpaid.length) {
+    const match = this.activeTableOrderMatch(tableId);
+    const open = await this.orderModel.find(match).lean().exec();
+    if (!open.length) {
       return { updatedCount: 0, totalSum: 0 };
     }
-    const totalSum = unpaid.reduce((s, o) => s + (o.orderTotal ?? 0), 0);
+    const totalSum = open.reduce((s, o) => s + (o.orderTotal ?? 0), 0);
     await this.orderModel
-      .updateMany(
-        { tableId: tid, paymentStatus: { $ne: PaymentStatus.PAID } },
-        { $set: { orderStatus: OrderStatus.COMPLETED, paymentStatus: PaymentStatus.PAID } }
-      )
+      .updateMany(match, {
+        $set: { orderStatus: OrderStatus.COMPLETED, paymentStatus: PaymentStatus.PAID },
+      })
       .exec();
-    return { updatedCount: unpaid.length, totalSum };
+    return { updatedCount: open.length, totalSum };
   }
 
   public async getStatis(): Promise<OrderStatis> {
