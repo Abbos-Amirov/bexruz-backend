@@ -606,7 +606,77 @@ class OrderService {
         $set: { orderStatus: OrderStatus.COMPLETED, paymentStatus: PaymentStatus.PAID },
       })
       .exec();
+    // Stol "tozalanmoqda" holatiga o'tadi; 3 daqiqadan keyin server o'zi bo'shatadi
+    await TableModel.updateOne(
+      { _id: shapeIntoMongooseObjectId(tableId) },
+      { tableStatus: TableStatus.CLEANING }
+    ).exec();
     return { updatedCount: open.length, totalSum };
+  }
+
+  /**
+   * Buyurtmadan bitta taomni bekor qilish. `quantity` berilsa faqat shuncha dona
+   * kamaytiriladi, aks holda taom butunlay olib tashlanadi. Buyurtma summasi qayta
+   * hisoblanadi; buyurtmada taom qolmasa, buyurtma CANCELLED bo'ladi.
+   */
+  public async cancelOrderItem(
+    itemId: string,
+    quantity?: number
+  ): Promise<{ orderId: string; orderStatus: string; orderTotal: number }> {
+    const item = await this.orderItemModel
+      .findById(shapeIntoMongooseObjectId(itemId))
+      .exec();
+    if (!item) throw new Errors(HttpCode.NOT_FOUND, Message.NO_DATA_FOUND);
+
+    const order = await this.orderModel.findById(item.orderId).exec();
+    if (!order) throw new Errors(HttpCode.NOT_FOUND, Message.NO_DATA_FOUND);
+    if (
+      order.orderStatus === OrderStatus.COMPLETED ||
+      order.orderStatus === OrderStatus.CANCELLED
+    ) {
+      throw new Errors(HttpCode.BAD_REQUEST, Message.UPDATE_FAILED);
+    }
+
+    const qty = Math.floor(Number(quantity));
+    if (Number.isFinite(qty) && qty > 0 && qty < item.itemQuantity) {
+      item.itemQuantity -= qty;
+      await item.save();
+    } else {
+      await this.orderItemModel.deleteOne({ _id: item._id }).exec();
+    }
+
+    const rest = await this.orderItemModel
+      .find({ orderId: order._id })
+      .lean()
+      .exec();
+    const orderTotal = rest.reduce(
+      (s: number, i: any) => s + i.itemQuantity * i.itemPrice,
+      0
+    );
+    const update: T = { orderTotal };
+    if (rest.length === 0) update.orderStatus = OrderStatus.CANCELLED;
+    const updated = (await this.orderModel
+      .findByIdAndUpdate(order._id, update, { new: true })
+      .exec()) as any;
+
+    // Stolda boshqa ochiq buyurtma qolmasa, stol bo'shatiladi
+    if (rest.length === 0 && order.tableId) {
+      const left = await this.orderModel
+        .countDocuments(this.activeTableOrderMatch(String(order.tableId)))
+        .exec();
+      if (left === 0) {
+        await TableModel.updateOne(
+          { _id: order.tableId },
+          { tableStatus: TableStatus.AVAILABLE }
+        ).exec();
+      }
+    }
+
+    return {
+      orderId: String(order._id),
+      orderStatus: updated.orderStatus,
+      orderTotal: updated.orderTotal,
+    };
   }
 
   public async getStatis(): Promise<OrderStatis> {

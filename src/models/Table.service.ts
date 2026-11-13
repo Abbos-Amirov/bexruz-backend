@@ -106,6 +106,34 @@ class TableService {
     return result;
   }
 
+  /** QR menyu uchun: faqat stol raqamlari (boshqa maydonlar ochiq tarqalmaydi) */
+  public async getPublicTables(): Promise<{ _id: string; tableNumber: string }[]> {
+    const rows = await this.tableModel
+      .find({}, { tableNumber: 1 })
+      .lean()
+      .exec();
+    return rows
+      .map((t: any) => ({ _id: String(t._id), tableNumber: String(t.tableNumber) }))
+      .sort((a, b) =>
+        a.tableNumber.localeCompare(b.tableNumber, undefined, { numeric: true })
+      );
+  }
+
+  /**
+   * "Tozalanmoqda" holatida `minutes` daqiqadan ko'p turgan stollarni "Bo'sh"ga o'tkazadi.
+   * Server o'zi har 30 soniyada chaqiradi — admin sahifasi ochiq bo'lishi shart emas.
+   */
+  public async releaseCleaningTables(minutes = 3): Promise<number> {
+    const before = new Date(Date.now() - minutes * 60 * 1000);
+    const result = await this.tableModel
+      .updateMany(
+        { tableStatus: TableStatus.CLEANING, updatedAt: { $lte: before } },
+        { tableStatus: TableStatus.AVAILABLE }
+      )
+      .exec();
+    return result.modifiedCount ?? 0;
+  }
+
   public async clickTableCall(tableId: string): Promise<Table> {
     const id = shapeIntoMongooseObjectId(tableId);
     const result = await this.tableModel

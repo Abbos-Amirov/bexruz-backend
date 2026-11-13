@@ -3,6 +3,7 @@ const router = Router();
 import memberController from "./controllers/member.controller";
 import productController from "./controllers/product.controller";
 import waiterController from "./controllers/waiter.controller";
+import tableController from "./controllers/table.controller";
 
 /** MEMBER — faqat admin login/logout va restoran ma'lumoti */
 router
@@ -13,6 +14,11 @@ router
 
 /** Public menu (stoldagi QR → faqat menyuni ko'rish) */
 router.get("/menu/products", productController.getPublicMenu);
+
+/** QR menyu: "Afitsantni chaqirish" (stol raqamini mijoz tanlaydi) */
+router
+  .get("/menu/tables", tableController.getPublicTables)
+  .post("/menu/call", tableController.publicCallWaiter);
 
 /** Product (faqat o'qish) */
 router

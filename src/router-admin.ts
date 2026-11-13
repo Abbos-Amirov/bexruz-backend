@@ -105,6 +105,8 @@ routerAdmin.get(
   // adminController.verifyAdmin,
   orderController.getOrderStatis
 );
+// Buyurtmadan bitta taomni bekor qilish (body: { quantity?: number })
+routerAdmin.post("/order/item/:itemId/cancel", orderController.cancelOrderItem);
 routerAdmin.get(
   "/order/table/:id/complete",
   orderController.completeTableOrders

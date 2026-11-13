@@ -180,6 +180,25 @@ orderController.completeTableOrders = async (req: Request, res: Response) => {
   }
 };
 
+orderController.cancelOrderItem = async (req: Request, res: Response) => {
+  try {
+    const itemId = String(req.params.itemId ?? "");
+    if (!/^[a-f0-9]{24}$/i.test(itemId))
+      throw new Errors(HttpCode.BAD_REQUEST, Message.UPDATE_FAILED);
+    const result = await orderService.cancelOrderItem(itemId, req.body?.quantity);
+    try {
+      getIo().to("admins").emit("orderUpdated", result);
+    } catch (ioErr) {
+      console.log("Socket emit failed:", ioErr);
+    }
+    res.status(HttpCode.OK).json(result);
+  } catch (err) {
+    console.log("Error, cancelOrderItem:", err);
+    if (err instanceof Errors) res.status(err.code).json(err);
+    else res.status(Errors.standard.code).json(Errors.standard);
+  }
+};
+
 /** Taomlar bo'yicha sotuv: ?from=ISO sana (default — oxirgi 30 kun) */
 orderController.getProductSales = async (req: Request, res: Response) => {
   try {

@@ -159,6 +159,74 @@ tableController.clickTableCall = async (req: Request, res: Response) => {
   }
 };
 
+/** QR menyu: stol raqamlari ro'yxati ("Afitsantni chaqirish" uchun) */
+tableController.getPublicTables = async (req: Request, res: Response) => {
+  try {
+    const result = await tableService.getPublicTables();
+    res.status(HttpCode.OK).json(result);
+  } catch (err) {
+    console.log("Error, getPublicTables:", err);
+    if (err instanceof Errors) res.status(err.code).json(err);
+    else res.status(Errors.standard.code).json(Errors.standard);
+  }
+};
+
+/** Spamdan himoya: bitta stol 60 soniyada 1 marta, bitta IP 10 daqiqada 30 marta */
+const CALL_TABLE_COOLDOWN_MS = 60 * 1000;
+const CALL_IP_MAX = 30;
+const CALL_IP_WINDOW_MS = 10 * 60 * 1000;
+const lastCallByTable = new Map<string, number>();
+const callsByIp = new Map<string, { count: number; first: number }>();
+
+/** QR menyu: mijoz "Afitsantni chaqirish" tugmasini bosdi */
+tableController.publicCallWaiter = async (req: Request, res: Response) => {
+  try {
+    const tableId = String(req.body?.tableId ?? "");
+    if (!/^[a-f0-9]{24}$/i.test(tableId))
+      throw new Errors(HttpCode.BAD_REQUEST, Message.NOT_TABLE);
+
+    const now = Date.now();
+    const ip = req.ip || "unknown";
+    const rec = callsByIp.get(ip);
+    if (rec && now - rec.first > CALL_IP_WINDOW_MS) callsByIp.delete(ip);
+    const cur = callsByIp.get(ip);
+    if (cur && cur.count >= CALL_IP_MAX)
+      throw new Errors(HttpCode.TOO_MANY_REQUESTS, Message.TOO_MANY_ATTEMPTS);
+
+    // Shu stol yaqinda chaqirgan bo'lsa — qayta xabar yubormaymiz, lekin mijozga "yuborildi" deymiz
+    const last = lastCallByTable.get(tableId) ?? 0;
+    if (now - last < CALL_TABLE_COOLDOWN_MS) {
+      res.status(HttpCode.OK).json({ ok: true, repeated: true });
+      return;
+    }
+
+    const result = await tableService.clickTableCall(tableId);
+    lastCallByTable.set(tableId, now);
+    callsByIp.set(ip, { count: (cur?.count ?? 0) + 1, first: cur?.first ?? now });
+
+    try {
+      const io = getIo();
+      io.to("admins").emit("newNotification", {
+        type: "CALL",
+        message: `Stol ${result.tableNumber}: afitsant chaqirildi`,
+        tableId: result._id,
+        tableNumber: result.tableNumber,
+        tableCall: TableCall.ACTIVE,
+        read: false,
+      });
+      io.to("admins").emit("tableCall", { tableId: result._id, tableNumber: result.tableNumber });
+    } catch (ioErr) {
+      console.log("Socket emit failed:", ioErr);
+    }
+
+    res.status(HttpCode.OK).json({ ok: true, tableNumber: result.tableNumber });
+  } catch (err) {
+    console.log("Error, publicCallWaiter:", err);
+    if (err instanceof Errors) res.status(err.code).json(err);
+    else res.status(Errors.standard.code).json(Errors.standard);
+  }
+};
+
 tableController.TableLogout = (req: ExtendedRequest, res: Response) => {
   try {
     console.log("TableLogout");

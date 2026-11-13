@@ -8,6 +8,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import OrderService from "./models/Order.service";
 import AuthService from "./models/Auth.service";
+import TableService from "./models/Table.service";
 
 const PORT = process.env.PORT ?? 3001;
 const orderService = new OrderService();
@@ -88,6 +89,17 @@ mongoose
           console.error("panelOrders emit error:", e);
         }
       }, 5000);
+
+      // Stol avtomatik bo'shatish: "tozalanmoqda" → 3 daqiqadan keyin "bo'sh"
+      const tableService = new TableService();
+      setInterval(async () => {
+        try {
+          const released = await tableService.releaseCleaningTables(3);
+          if (released > 0) ioInstance.to("admins").emit("tablesUpdated", { released });
+        } catch (e) {
+          console.error("releaseCleaningTables error:", e);
+        }
+      }, 30000);
     });
   })
   .catch((err) => {
